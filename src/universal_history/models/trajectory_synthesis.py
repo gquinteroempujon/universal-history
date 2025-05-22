@@ -163,21 +163,84 @@ class TrajectorySynthesis:
             'subject_id': self.subject_id,
             'domain_type': domain_type_value,
             'level': self.level,
-            'time_frame': self.time_frame.to_dict(),
             'summary': self.summary,
-            'source_events': self.source_events,
-            'key_insights': self.key_insights,
-            'significant_events': [event.to_dict() for event in self.significant_events],
-            'metrics': {k: v.to_dict() for k, v in self.metrics.items()},
-            'patterns': self.patterns,
-            'recommendations': self.recommendations,
-            'domain_specific_data': self.domain_specific_data,
-            'metadata': self.metadata.to_dict(),
+            'source_events': self.source_events.copy() if hasattr(self, 'source_events') else [],
+            'key_insights': self.key_insights.copy() if hasattr(self, 'key_insights') else [],
+            'patterns': self.patterns.copy() if hasattr(self, 'patterns') else [],
+            'recommendations': self.recommendations.copy() if hasattr(self, 'recommendations') else [],
+            'domain_specific_data': self.domain_specific_data.copy() if hasattr(self, 'domain_specific_data') and isinstance(self.domain_specific_data, dict) else {},
             'confidence_level': self.confidence_level.value if isinstance(self.confidence_level, ConfidenceLevel) else self.confidence_level
         }
         
-        if self.next_review_date:
-            result['next_review_date'] = self.next_review_date.isoformat()
+        # Add time_frame safely
+        try:
+            if hasattr(self, 'time_frame') and self.time_frame:
+                if hasattr(self.time_frame, 'to_dict') and callable(getattr(self.time_frame, 'to_dict')):
+                    result['time_frame'] = self.time_frame.to_dict()
+                else:
+                    result['time_frame'] = {
+                        'start': self.time_frame.start.isoformat() if hasattr(self.time_frame, 'start') and isinstance(self.time_frame.start, datetime) else None,
+                        'end': self.time_frame.end.isoformat() if hasattr(self.time_frame, 'end') and isinstance(self.time_frame.end, datetime) else None
+                    }
+        except (RecursionError, AttributeError):
+            result['time_frame'] = {}
+        
+        # Add significant_events safely
+        try:
+            if hasattr(self, 'significant_events') and self.significant_events:
+                events_list = []
+                for event in self.significant_events:
+                    if hasattr(event, 'to_dict') and callable(getattr(event, 'to_dict')):
+                        events_list.append(event.to_dict())
+                    else:
+                        events_list.append({
+                            're_id': getattr(event, 're_id', None),
+                            'description': getattr(event, 'description', None),
+                            'significance': getattr(event, 'significance', None)
+                        })
+                result['significant_events'] = events_list
+            else:
+                result['significant_events'] = []
+        except (RecursionError, AttributeError):
+            result['significant_events'] = []
+            
+        # Add metrics safely
+        try:
+            if hasattr(self, 'metrics') and self.metrics:
+                metrics_dict = {}
+                for k, v in self.metrics.items():
+                    if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                        metrics_dict[k] = v.to_dict()
+                    else:
+                        metrics_dict[k] = {
+                            'value': getattr(v, 'value', None),
+                            'trend': getattr(v, 'trend', None),
+                            'analysis': getattr(v, 'analysis', None)
+                        }
+                result['metrics'] = metrics_dict
+            else:
+                result['metrics'] = {}
+        except (RecursionError, AttributeError):
+            result['metrics'] = {}
+            
+        # Add metadata safely
+        try:
+            if hasattr(self, 'metadata') and self.metadata:
+                if hasattr(self.metadata, 'to_dict') and callable(getattr(self.metadata, 'to_dict')):
+                    result['metadata'] = self.metadata.to_dict()
+                else:
+                    result['metadata'] = {
+                        'generated_by': getattr(self.metadata, 'generated_by', 'system'),
+                        'generated_on': getattr(self.metadata, 'generated_on', datetime.now()).isoformat() if isinstance(getattr(self.metadata, 'generated_on', None), datetime) else None
+                    }
+            else:
+                result['metadata'] = {}
+        except (RecursionError, AttributeError):
+            result['metadata'] = {}
+        
+        # Add next_review_date safely
+        if hasattr(self, 'next_review_date') and self.next_review_date:
+            result['next_review_date'] = self.next_review_date.isoformat() if isinstance(self.next_review_date, datetime) else self.next_review_date
             
         return result
     

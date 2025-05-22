@@ -206,7 +206,8 @@ class DomainCatalog:
     """
     domain_type: DomainType
     organization: Organization
-    
+    event_types: List[str] = field(default_factory=list)
+    properties: Dict[str, Any] = field(default_factory=dict)
     cdd_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     version: str = "1.0"
     last_updated: date = field(default_factory=date.today)
@@ -220,6 +221,27 @@ class DomainCatalog:
         'external_frameworks': {}
     })
     custom_extensions: Dict[str, CustomExtension] = field(default_factory=dict)
+
+    def __init__(self, domain_type: DomainType, organization: Organization, event_types: Optional[List[str]] = None, properties: Optional[Dict[str, Any]] = None, **kwargs):
+        self.domain_type = domain_type
+        self.organization = organization
+        self.event_types = event_types if event_types is not None else []
+        self.properties = properties if properties is not None else {}
+        self.cdd_id = kwargs.get('cdd_id', str(uuid.uuid4()))
+        self.version = kwargs.get('version', "1.0")
+        self.last_updated = kwargs.get('last_updated', date.today())
+        self.definitions = kwargs.get('definitions', {
+            'terms': {},
+            'metrics': {},
+            'classifications': {},
+            'attributes': {}
+        })
+        self.mappings = kwargs.get('mappings', {
+            'external_frameworks': {}
+        })
+        self.custom_extensions = kwargs.get('custom_extensions', {})
+    event_types: List[str] = field(default_factory=list)
+    properties: Dict[str, Any] = field(default_factory=dict)
     
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -230,59 +252,129 @@ class DomainCatalog:
         """
         domain_type_value = self.domain_type.value if isinstance(self.domain_type, DomainType) else self.domain_type
         
-        # Process definitions dictionary
-        definitions_dict = {}
-        
-        # Terms
-        if 'terms' in self.definitions:
-            definitions_dict['terms'] = {
-                k: v.to_dict() if hasattr(v, 'to_dict') else v 
-                for k, v in self.definitions['terms'].items()
-            }
-        
-        # Metrics
-        if 'metrics' in self.definitions:
-            definitions_dict['metrics'] = {
-                k: v.to_dict() if hasattr(v, 'to_dict') else v 
-                for k, v in self.definitions['metrics'].items()
-            }
-        
-        # Classifications
-        if 'classifications' in self.definitions:
-            definitions_dict['classifications'] = {
-                k: v.to_dict() if hasattr(v, 'to_dict') else v 
-                for k, v in self.definitions['classifications'].items()
-            }
-        
-        # Attributes
-        if 'attributes' in self.definitions:
-            definitions_dict['attributes'] = {
-                k: v.to_dict() if hasattr(v, 'to_dict') else v 
-                for k, v in self.definitions['attributes'].items()
-            }
-        
-        # Process mappings dictionary
-        mappings_dict = {}
-        
-        # External frameworks
-        if 'external_frameworks' in self.mappings:
-            mappings_dict['external_frameworks'] = {
-                k: v.to_dict() if hasattr(v, 'to_dict') else v 
-                for k, v in self.mappings['external_frameworks'].items()
-            }
-        
-        return {
+        result = {
             'cdd_id': self.cdd_id,
             'domain_type': domain_type_value,
             'version': self.version,
-            'last_updated': self.last_updated.isoformat(),
-            'organization': self.organization.to_dict(),
-            'definitions': definitions_dict,
-            'mappings': mappings_dict,
-            'custom_extensions': {
-                k: v.to_dict() for k, v in self.custom_extensions.items()
-            }
+            'last_updated': self.last_updated.isoformat() if hasattr(self.last_updated, 'isoformat') else str(self.last_updated),
+            'definitions': {},
+            'mappings': {},
+            'custom_extensions': {}
         }
+        
+        # Add organization safely
+        try:
+            if hasattr(self, 'organization') and self.organization:
+                if hasattr(self.organization, 'to_dict') and callable(getattr(self.organization, 'to_dict')):
+                    result['organization'] = self.organization.to_dict()
+                else:
+                    result['organization'] = {
+                        'id': getattr(self.organization, 'id', None),
+                        'name': getattr(self.organization, 'name', None)
+                    }
+        except (RecursionError, AttributeError):
+            result['organization'] = {}
+        
+        # Process definitions dictionary safely
+        try:
+            if hasattr(self, 'definitions') and self.definitions:
+                definitions_dict = {}
+                
+                # Terms
+                if 'terms' in self.definitions:
+                    try:
+                        terms_dict = {}
+                        for k, v in self.definitions['terms'].items():
+                            if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                                terms_dict[k] = v.to_dict()
+                            else:
+                                terms_dict[k] = {'definition': getattr(v, 'definition', None)}
+                        definitions_dict['terms'] = terms_dict
+                    except (RecursionError, AttributeError):
+                        definitions_dict['terms'] = {}
+                
+                # Metrics
+                if 'metrics' in self.definitions:
+                    try:
+                        metrics_dict = {}
+                        for k, v in self.definitions['metrics'].items():
+                            if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                                metrics_dict[k] = v.to_dict()
+                            else:
+                                metrics_dict[k] = {'description': getattr(v, 'description', None)}
+                        definitions_dict['metrics'] = metrics_dict
+                    except (RecursionError, AttributeError):
+                        definitions_dict['metrics'] = {}
+                
+                # Classifications
+                if 'classifications' in self.definitions:
+                    try:
+                        classifications_dict = {}
+                        for k, v in self.definitions['classifications'].items():
+                            if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                                classifications_dict[k] = v.to_dict()
+                            else:
+                                classifications_dict[k] = {'description': getattr(v, 'description', None)}
+                        definitions_dict['classifications'] = classifications_dict
+                    except (RecursionError, AttributeError):
+                        definitions_dict['classifications'] = {}
+                
+                # Attributes
+                if 'attributes' in self.definitions:
+                    try:
+                        attributes_dict = {}
+                        for k, v in self.definitions['attributes'].items():
+                            if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                                attributes_dict[k] = v.to_dict()
+                            else:
+                                attributes_dict[k] = {'name': getattr(v, 'name', None)}
+                        definitions_dict['attributes'] = attributes_dict
+                    except (RecursionError, AttributeError):
+                        definitions_dict['attributes'] = {}
+                
+                result['definitions'] = definitions_dict
+        except (RecursionError, AttributeError):
+            result['definitions'] = {}
+        
+        # Process mappings dictionary safely
+        try:
+            if hasattr(self, 'mappings') and self.mappings:
+                mappings_dict = {}
+                
+                # External frameworks
+                if 'external_frameworks' in self.mappings:
+                    try:
+                        frameworks_dict = {}
+                        for k, v in self.mappings['external_frameworks'].items():
+                            if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                                frameworks_dict[k] = v.to_dict()
+                            else:
+                                frameworks_dict[k] = {
+                                    'url': getattr(v, 'url', None),
+                                    'version': getattr(v, 'version', None)
+                                }
+                        mappings_dict['external_frameworks'] = frameworks_dict
+                    except (RecursionError, AttributeError):
+                        mappings_dict['external_frameworks'] = {}
+                
+                result['mappings'] = mappings_dict
+        except (RecursionError, AttributeError):
+            result['mappings'] = {}
+        
+        # Process custom extensions safely
+        try:
+            if hasattr(self, 'custom_extensions') and self.custom_extensions:
+                extensions_dict = {}
+                for k, v in self.custom_extensions.items():
+                    if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                        extensions_dict[k] = v.to_dict()
+                    else:
+                        extensions_dict[k] = {'description': getattr(v, 'description', None)}
+                result['custom_extensions'] = extensions_dict
+        except (RecursionError, AttributeError):
+            result['custom_extensions'] = {}
+        
+        return result
     
     def to_json(self) -> str:
         """

@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any, Union, Set
 
 from ..models.universal_history import UniversalHistory
 from ..models.event_record import DomainType
+from ..models.domain_catalog import Organization
 from ..storage.repository import HistoryRepository
 
 class HistoryService:
@@ -21,7 +22,7 @@ class HistoryService:
         """
         self.repository = repository
     
-    def create_history(self, subject_id: str) -> str:
+    def create_history(self, subject_id: str, organization: Optional[Organization] = None) -> str:
         """
         Create a new Universal History.
         
@@ -37,7 +38,7 @@ class HistoryService:
             return existing_history.hu_id
         
         # Create a new history
-        history = UniversalHistory(subject_id=subject_id)
+        history = UniversalHistory(subject_id=subject_id, organization=organization)
         
         # Save the history
         hu_id = self.repository.save_history(history)
@@ -196,8 +197,22 @@ class HistoryService:
             include_catalogs=include_catalogs
         )
         
-        # Change the subject ID
+        # Change the subject ID and generate a new history ID
+        import uuid
         history_data['subject_id'] = target_subject_id
+        history_data['hu_id'] = str(uuid.uuid4())
+        
+        # Update subject ID in all records if needed
+        if include_events and 'event_records' in history_data:
+            for event_dict in history_data['event_records'].values():
+                event_dict['subject_id'] = target_subject_id
+        
+        if include_syntheses and 'trajectory_syntheses' in history_data:
+            for synthesis_dict in history_data['trajectory_syntheses'].values():
+                synthesis_dict['subject_id'] = target_subject_id
+        
+        if include_state and 'state_document' in history_data:
+            history_data['state_document']['subject_id'] = target_subject_id
         
         # Import the history for the new subject
         hu_id = self.import_history(history_data)

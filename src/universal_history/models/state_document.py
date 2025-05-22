@@ -139,19 +139,67 @@ class StateDocument:
         Returns:
             Dict[str, Any]: Dictionary representation of the StateDocument
         """
-        return {
+        result = {
             'de_id': self.de_id,
             'subject_id': self.subject_id,
             'general_summary': self.general_summary,
-            'last_updated': self.last_updated.isoformat(),
+            'last_updated': self.last_updated.isoformat() if isinstance(self.last_updated, datetime) else self.last_updated,
             'version': self.version,
-            'domains': {k: v.to_dict() for k, v in self.domains.items()},
-            'aggregated_insights': self.aggregated_insights.to_dict(),
             'llm_optimized_summary': self.llm_optimized_summary,
-            'source_events': self.source_events,
-            'source_syntheses': self.source_syntheses,
-            'metadata': self.metadata.to_dict()
+            'source_events': self.source_events.copy() if hasattr(self, 'source_events') else [],
+            'source_syntheses': self.source_syntheses.copy() if hasattr(self, 'source_syntheses') else []
         }
+        
+        # Add domains safely
+        try:
+            if hasattr(self, 'domains') and self.domains:
+                domains_dict = {}
+                for k, v in self.domains.items():
+                    if hasattr(v, 'to_dict') and callable(getattr(v, 'to_dict')):
+                        domains_dict[k] = v.to_dict()
+                    else:
+                        domains_dict[k] = {
+                            'last_updated': v.last_updated.isoformat() if hasattr(v, 'last_updated') and isinstance(v.last_updated, datetime) else None,
+                            'current_status': getattr(v, 'current_status', None)
+                        }
+                result['domains'] = domains_dict
+            else:
+                result['domains'] = {}
+        except (RecursionError, AttributeError):
+            result['domains'] = {}
+            
+        # Add aggregated_insights safely
+        try:
+            if hasattr(self, 'aggregated_insights') and self.aggregated_insights:
+                if hasattr(self.aggregated_insights, 'to_dict') and callable(getattr(self.aggregated_insights, 'to_dict')):
+                    result['aggregated_insights'] = self.aggregated_insights.to_dict()
+                else:
+                    result['aggregated_insights'] = {
+                        'cross_domain_patterns': getattr(self.aggregated_insights, 'cross_domain_patterns', []),
+                        'recommended_actions': getattr(self.aggregated_insights, 'recommended_actions', [])
+                    }
+            else:
+                result['aggregated_insights'] = {}
+        except (RecursionError, AttributeError):
+            result['aggregated_insights'] = {}
+            
+        # Add metadata safely
+        try:
+            if hasattr(self, 'metadata') and self.metadata:
+                if hasattr(self.metadata, 'to_dict') and callable(getattr(self.metadata, 'to_dict')):
+                    result['metadata'] = self.metadata.to_dict()
+                else:
+                    result['metadata'] = {
+                        'generated_by': getattr(self.metadata, 'generated_by', 'system'),
+                        'generated_on': getattr(self.metadata, 'generated_on', datetime.now()).isoformat() if isinstance(getattr(self.metadata, 'generated_on', None), datetime) else None,
+                        'confidence_level': getattr(self.metadata, 'confidence_level', 'medium')
+                    }
+            else:
+                result['metadata'] = {}
+        except (RecursionError, AttributeError):
+            result['metadata'] = {}
+            
+        return result
     
     def to_json(self) -> str:
         """

@@ -155,26 +155,85 @@ class EventRecord:
         Returns:
             Dict[str, Any]: Dictionary representation of the EventRecord
         """
-        def _convert_to_dict(obj):
-            if hasattr(obj, 'to_dict') and callable(getattr(obj, 'to_dict')):
-                return obj.to_dict()
-            elif hasattr(obj, '__dict__'):
-                return {k: _convert_to_dict(v) for k, v in obj.__dict__.items() 
-                        if not k.startswith('_')}
-            elif isinstance(obj, (list, tuple)):
-                return [_convert_to_dict(item) for item in obj]
-            elif isinstance(obj, dict):
-                return {k: _convert_to_dict(v) for k, v in obj.items()}
-            elif isinstance(obj, (str, int, float, bool, type(None))):
-                return obj
-            elif isinstance(obj, datetime):
-                return obj.isoformat()
-            elif isinstance(obj, Enum):
-                return obj.value
-            else:
-                return str(obj)
+        # Crear un diccionario directamente con las propiedades clave
+        result = {
+            "subject_id": self.subject_id,
+            "domain_type": self.domain_type.value if isinstance(self.domain_type, Enum) else self.domain_type,
+            "event_type": self.event_type,
+            "re_id": self.re_id,
+            "timestamp": self.timestamp.isoformat() if isinstance(self.timestamp, datetime) else self.timestamp,
+            "previous_re_hash": self.previous_re_hash,
+            "current_re_hash": self.current_re_hash,
+            "verification_status": self.verification_status.value if isinstance(self.verification_status, Enum) else self.verification_status
+        }
         
-        return _convert_to_dict(self)
+        # Convertir raw_input
+        if self.raw_input:
+            result["raw_input"] = {
+                "type": self.raw_input.type.value if isinstance(self.raw_input.type, Enum) else self.raw_input.type,
+                "content": self.raw_input.content,
+                "duration": self.raw_input.duration,
+                "context": self.raw_input.context
+            }
+        
+        # Convertir source
+        if self.source:
+            source_dict = {
+                "type": self.source.type.value if isinstance(self.source.type, Enum) else self.source.type,
+                "id": self.source.id,
+                "name": self.source.name,
+                "input_method": self.source.input_method.value if isinstance(self.source.input_method, Enum) else self.source.input_method,
+                "processing_method": self.source.processing_method.value if isinstance(self.source.processing_method, Enum) else self.source.processing_method
+            }
+            
+            # Añadir creator si existe
+            if self.source.creator:
+                source_dict["creator"] = {
+                    "id": self.source.creator.id,
+                    "role": self.source.creator.role,
+                    "name": self.source.creator.name,
+                    "qualifications": self.source.creator.qualifications,
+                    "experience_years": self.source.creator.experience_years
+                }
+            
+            result["source"] = source_dict
+        
+        # Convertir processed_data
+        if hasattr(self, 'processed_data') and self.processed_data:
+            result["processed_data"] = {
+                "quantitative_metrics": self.processed_data.quantitative_metrics,
+                "qualitative_assessments": self.processed_data.qualitative_assessments,
+                "derived_insights": self.processed_data.derived_insights
+            }
+        
+        # Convertir context
+        if hasattr(self, 'context') and self.context:
+            result["context"] = {
+                "location": self.context.location,
+                "participants": self.context.participants,
+                "environmental_factors": self.context.environmental_factors
+            }
+        
+        # Convertir metadata
+        if hasattr(self, 'metadata') and self.metadata:
+            result["metadata"] = {
+                "confidentiality_level": self.metadata.confidentiality_level.value if isinstance(self.metadata.confidentiality_level, Enum) else self.metadata.confidentiality_level,
+                "access_level": self.metadata.access_level,
+                "tags": self.metadata.tags,
+                "related_documents": self.metadata.related_documents,
+                "version": self.metadata.version,
+                "last_modified": self.metadata.last_modified.isoformat() if isinstance(self.metadata.last_modified, datetime) else self.metadata.last_modified,
+                "modified_by": self.metadata.modified_by
+            }
+        
+        # Convertir confidence_level
+        if hasattr(self, 'confidence_level') and self.confidence_level:
+            result["confidence_level"] = {
+                "raw_data": self.confidence_level.raw_data.value if isinstance(self.confidence_level.raw_data, Enum) else self.confidence_level.raw_data,
+                "processed_data": self.confidence_level.processed_data.value if isinstance(self.confidence_level.processed_data, Enum) else self.confidence_level.processed_data
+            }
+        
+        return result
     
     def to_json(self) -> str:
         """

@@ -10,7 +10,7 @@ import json
 from .event_record import EventRecord, DomainType
 from .trajectory_synthesis import TrajectorySynthesis
 from .state_document import StateDocument
-from .domain_catalog import DomainCatalog
+from .domain_catalog import DomainCatalog, Organization
 
 @dataclass
 class UniversalHistory:
@@ -22,6 +22,7 @@ class UniversalHistory:
     a State Document reflecting the current state.
     """
     subject_id: str
+    organization: Optional[Organization] = None
     
     hu_id: str = field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = field(default_factory=datetime.now)
@@ -206,15 +207,103 @@ class UniversalHistory:
         result = {
             'hu_id': self.hu_id,
             'subject_id': self.subject_id,
-            'created_at': self.created_at.isoformat(),
-            'last_updated': self.last_updated.isoformat(),
-            'event_records': {re_id: er.to_dict() for re_id, er in self.event_records.items()},
-            'trajectory_syntheses': {st_id: ts.to_dict() for st_id, ts in self.trajectory_syntheses.items()},
-            'domain_catalogs': {domain: catalog.to_dict() for domain, catalog in self.domain_catalogs.items()}
+            'created_at': self.created_at.isoformat() if isinstance(self.created_at, datetime) else self.created_at,
+            'last_updated': self.last_updated.isoformat() if isinstance(self.last_updated, datetime) else self.last_updated,
         }
         
+        # Add event_records safely
+        if hasattr(self, 'event_records') and self.event_records:
+            event_records_dict = {}
+            for re_id, er in self.event_records.items():
+                try:
+                    if hasattr(er, 'to_dict') and callable(getattr(er, 'to_dict')):
+                        event_records_dict[re_id] = er.to_dict()
+                    else:
+                        # Simple representation if to_dict not available
+                        event_records_dict[re_id] = {
+                            're_id': getattr(er, 're_id', re_id),
+                            'subject_id': getattr(er, 'subject_id', self.subject_id),
+                            'domain_type': getattr(er, 'domain_type', None),
+                            'event_type': getattr(er, 'event_type', None)
+                        }
+                except RecursionError:
+                    # Fallback in case of recursion
+                    event_records_dict[re_id] = {
+                        're_id': re_id,
+                        'subject_id': self.subject_id,
+                        'note': 'Full representation unavailable due to recursion'
+                    }
+            result['event_records'] = event_records_dict
+        else:
+            result['event_records'] = {}
+            
+        # Add trajectory_syntheses safely
+        if hasattr(self, 'trajectory_syntheses') and self.trajectory_syntheses:
+            syntheses_dict = {}
+            for st_id, ts in self.trajectory_syntheses.items():
+                try:
+                    if hasattr(ts, 'to_dict') and callable(getattr(ts, 'to_dict')):
+                        syntheses_dict[st_id] = ts.to_dict()
+                    else:
+                        # Simple representation if to_dict not available
+                        syntheses_dict[st_id] = {
+                            'st_id': getattr(ts, 'st_id', st_id),
+                            'subject_id': getattr(ts, 'subject_id', self.subject_id),
+                            'domain_type': getattr(ts, 'domain_type', None),
+                            'synthesis_type': getattr(ts, 'synthesis_type', None)
+                        }
+                except RecursionError:
+                    # Fallback in case of recursion
+                    syntheses_dict[st_id] = {
+                        'st_id': st_id,
+                        'subject_id': self.subject_id,
+                        'note': 'Full representation unavailable due to recursion'
+                    }
+            result['trajectory_syntheses'] = syntheses_dict
+        else:
+            result['trajectory_syntheses'] = {}
+            
+        # Add domain_catalogs safely
+        if hasattr(self, 'domain_catalogs') and self.domain_catalogs:
+            catalogs_dict = {}
+            for domain, catalog in self.domain_catalogs.items():
+                try:
+                    if hasattr(catalog, 'to_dict') and callable(getattr(catalog, 'to_dict')):
+                        catalogs_dict[domain] = catalog.to_dict()
+                    else:
+                        # Simple representation if to_dict not available
+                        domain_type_value = domain
+                        catalogs_dict[domain] = {
+                            'domain_type': domain_type_value,
+                            'cdd_id': getattr(catalog, 'cdd_id', None),
+                        }
+                except RecursionError:
+                    # Fallback in case of recursion
+                    catalogs_dict[domain] = {
+                        'domain_type': domain,
+                        'note': 'Full representation unavailable due to recursion'
+                    }
+            result['domain_catalogs'] = catalogs_dict
+        else:
+            result['domain_catalogs'] = {}
+        
+        # Add state_document safely
         if self.state_document:
-            result['state_document'] = self.state_document.to_dict()
+            try:
+                if hasattr(self.state_document, 'to_dict') and callable(getattr(self.state_document, 'to_dict')):
+                    result['state_document'] = self.state_document.to_dict()
+                else:
+                    # Simple representation if to_dict not available
+                    result['state_document'] = {
+                        'de_id': getattr(self.state_document, 'de_id', None),
+                        'subject_id': getattr(self.state_document, 'subject_id', self.subject_id)
+                    }
+            except RecursionError:
+                # Fallback in case of recursion
+                result['state_document'] = {
+                    'subject_id': self.subject_id,
+                    'note': 'Full representation unavailable due to recursion'
+                }
             
         return result
     
